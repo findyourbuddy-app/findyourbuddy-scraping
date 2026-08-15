@@ -6,6 +6,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from app.config import Settings
 from app.geocoding.client import geocode
 from app.ingestion.backend_client import ingest_events
+from app.normalization.ai_enrichment import enrich_event_with_ai
 from app.normalization.normalizer import normalize_events
 from app.sources.base import SourceAdapter
 
@@ -25,8 +26,9 @@ def run_source(
             base_url=settings.geocoding_base_url,
             user_agent=settings.geocoding_user_agent,
         )
+        enrich_fn = partial(enrich_event_with_ai, api_key=settings.gemini_api_key)
         raw_events = adapter.fetch_raw_events()
-        events = normalize_events(raw_events, name, category_mapping, geocode_fn)
+        events = normalize_events(raw_events, name, category_mapping, geocode_fn, enrich_fn)
         ingest_events(events, settings.backend_api_url, settings.scraper_api_key)
     except Exception:
         logger.exception(f"Source failed, skipping: {name}")

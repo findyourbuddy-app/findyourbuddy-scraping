@@ -7,6 +7,11 @@ from app.normalization.schema import EventPayload
 logger = logging.getLogger(__name__)
 
 GeocodeFn = Callable[[str], tuple[float, float] | None]
+EnrichFn = Callable[[EventPayload], EventPayload]
+
+
+def _identity_enrich(payload: EventPayload) -> EventPayload:
+    return payload
 
 
 def normalize_event(
@@ -14,14 +19,18 @@ def normalize_event(
     source: str,
     category_mapping: dict[str, str],
     geocode_fn: GeocodeFn,
+    enrich_fn: EnrichFn = _identity_enrich,
 ) -> EventPayload | None:
-    coordinates = geocode_fn(raw["address"])
-    if coordinates is None:
-        logger.warning(f"Geocoding failed, skipping event: {raw.get('external_id')}")
-        return None
+    if raw.get("latitude") is not None and raw.get("longitude") is not None:
+        latitude, longitude = raw["latitude"], raw["longitude"]
+    else:
+        coordinates = geocode_fn(raw["address"])
+        if coordinates is None:
+            logger.warning(f"Geocoding failed, skipping event: {raw.get('external_id')}")
+            return None
+        latitude, longitude = coordinates
 
-    latitude, longitude = coordinates
-    return EventPayload(
+    payload = EventPayload(
         external_id=raw["external_id"],
         source=source,
         title=raw["title"],
@@ -32,7 +41,10 @@ def normalize_event(
         longitude=longitude,
         starts_at=raw["starts_at"],
         source_url=raw.get("source_url"),
+        image_url=raw.get("image_url"),
     )
+
+    return enrich_fn(payload)
 
 
 def normalize_events(
@@ -40,10 +52,11 @@ def normalize_events(
     source: str,
     category_mapping: dict[str, str],
     geocode_fn: GeocodeFn,
+    enrich_fn: EnrichFn = _identity_enrich,
 ) -> list[EventPayload]:
     events: list[EventPayload] = []
     for raw in raw_events:
-        event = normalize_event(raw, source, category_mapping, geocode_fn)
+        event = normalize_event(raw, source, category_mapping, geocode_fn, enrich_fn)
         if event is not None:
             events.append(event)
     return events

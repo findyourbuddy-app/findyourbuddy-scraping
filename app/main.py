@@ -1,22 +1,28 @@
 import logging
 
-from app.config import get_settings, load_app_config
+from app.config import Settings, get_settings, load_app_config
 from app.scheduler import start_scheduler
 from app.sources.base import SourceAdapter
+from app.sources.etkinlikio import EtkinlikIoSource
 
 logging.basicConfig(level=logging.INFO)
 
-# Her kaynak secildikce buraya kaydedilir: {"biletix": BiletixSource()}
-SOURCE_REGISTRY: dict[str, SourceAdapter] = {}
+
+def build_source_registry(settings: Settings) -> dict[str, SourceAdapter]:
+    registry: dict[str, SourceAdapter] = {}
+    if settings.etkinlik_io_api_token:
+        registry["etkinlik_io"] = EtkinlikIoSource(api_token=settings.etkinlik_io_api_token)
+    return registry
 
 
 def main() -> None:
     settings = get_settings()
     app_config = load_app_config(settings.config_path)
+    source_registry = build_source_registry(settings)
     active_sources = {
-        name: SOURCE_REGISTRY[name]
+        name: source_registry[name]
         for name in app_config.active_sources
-        if name in SOURCE_REGISTRY
+        if name in source_registry
     }
     start_scheduler(active_sources, settings, app_config.category_mapping)
 

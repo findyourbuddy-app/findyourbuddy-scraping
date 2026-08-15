@@ -46,6 +46,34 @@ def test_normalize_event_skips_when_geocoding_fails() -> None:
     assert event is None
 
 
+def test_normalize_event_uses_provided_coordinates_without_geocoding() -> None:
+    def geocode_fn(address: str) -> tuple[float, float] | None:
+        raise AssertionError("geocode_fn should not be called when coordinates are provided")
+
+    event = normalize_event(
+        _raw_event(latitude=41.5, longitude=29.5),
+        source="test-source",
+        category_mapping={"concert": "muzik"},
+        geocode_fn=geocode_fn,
+    )
+
+    assert event is not None
+    assert event.latitude == 41.5
+    assert event.longitude == 29.5
+
+
+def test_normalize_event_maps_image_url() -> None:
+    event = normalize_event(
+        _raw_event(image_url="https://example.com/poster.jpg"),
+        source="test-source",
+        category_mapping={"concert": "muzik"},
+        geocode_fn=lambda address: (41.0, 29.0),
+    )
+
+    assert event is not None
+    assert event.image_url == "https://example.com/poster.jpg"
+
+
 def test_normalize_events_filters_out_skipped() -> None:
     raw_events = [
         _raw_event(external_id="evt-1", address="Address A"),

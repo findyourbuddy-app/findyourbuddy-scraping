@@ -27,7 +27,7 @@ def _post_batch(
 ) -> dict[str, Any]:
     response = client.post(
         url,
-        json=[event.model_dump(mode="json") for event in batch],
+        json={"events": [event.model_dump(mode="json") for event in batch]},
         headers={"X-Scraper-Api-Key": api_key},
     )
     response.raise_for_status()

@@ -20,6 +20,7 @@ def test_event_payload_accepts_valid_data() -> None:
 
     assert event.description is None
     assert event.source_url is None
+    assert event.image_url is None
 
 
 def test_event_payload_requires_mandatory_fields() -> None:
