@@ -7,6 +7,11 @@ from app.normalization.schema import EventPayload
 logger = logging.getLogger(__name__)
 
 GeocodeFn = Callable[[str], tuple[float, float] | None]
+EnrichFn = Callable[[EventPayload], EventPayload]
+
+
+def _identity_enrich(payload: EventPayload) -> EventPayload:
+    return payload
 
 
 def normalize_event(
@@ -14,6 +19,7 @@ def normalize_event(
     source: str,
     category_mapping: dict[str, str],
     geocode_fn: GeocodeFn,
+    enrich_fn: EnrichFn = _identity_enrich,
 ) -> EventPayload | None:
     if raw.get("latitude") is not None and raw.get("longitude") is not None:
         latitude, longitude = raw["latitude"], raw["longitude"]
@@ -38,8 +44,7 @@ def normalize_event(
         image_url=raw.get("image_url"),
     )
 
-    from app.normalization.ai_enrichment import enrich_event_with_ai
-    return enrich_event_with_ai(payload)
+    return enrich_fn(payload)
 
 
 def normalize_events(
@@ -47,10 +52,11 @@ def normalize_events(
     source: str,
     category_mapping: dict[str, str],
     geocode_fn: GeocodeFn,
+    enrich_fn: EnrichFn = _identity_enrich,
 ) -> list[EventPayload]:
     events: list[EventPayload] = []
     for raw in raw_events:
-        event = normalize_event(raw, source, category_mapping, geocode_fn)
+        event = normalize_event(raw, source, category_mapping, geocode_fn, enrich_fn)
         if event is not None:
             events.append(event)
     return events

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     geocoding_base_url: str = "https://nominatim.openstreetmap.org"
     geocoding_user_agent: str
     config_path: Path = Path("config.json")
+    gemini_api_key: str = ""
 
 
 class AppConfig(BaseModel):

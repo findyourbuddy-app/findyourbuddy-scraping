@@ -1,5 +1,4 @@
 import logging
-import os
 import json
 import httpx
 from app.normalization.schema import EventPayload
@@ -7,16 +6,15 @@ from app.normalization.schema import EventPayload
 logger = logging.getLogger(__name__)
 
 ALLOWED_CATEGORIES = [
-    "running", "coffee", "concert", "climbing", "hiking", 
-    "cycling", "yoga", "boardgames", "football", "party", 
+    "running", "coffee", "concert", "climbing", "hiking",
+    "cycling", "yoga", "boardgames", "football", "party",
     "theatre", "art", "workshop", "hobby", "other"
 ]
 
-def enrich_event_with_ai(payload: EventPayload) -> EventPayload:
+def enrich_event_with_ai(payload: EventPayload, api_key: str) -> EventPayload:
     """Enriches an EventPayload with AI-determined category mapping and tags using Gemini API."""
-    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        logger.debug("GEMINI_API_KEY environment variable is not set. Skipping AI enrichment.")
+        logger.debug("GEMINI_API_KEY is not set. Skipping AI enrichment.")
         return payload
 
     prompt = (
