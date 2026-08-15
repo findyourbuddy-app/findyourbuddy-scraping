@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     backend_api_url: str
     scraper_api_key: str
+    etkinlik_io_api_token: str = ""
     schedule_interval_hours: float = 6.0
     geocoding_delay_seconds: float = 1.0
     geocoding_base_url: str = "https://nominatim.openstreetmap.org"

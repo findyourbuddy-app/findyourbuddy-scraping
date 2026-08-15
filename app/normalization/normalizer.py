@@ -15,13 +15,16 @@ def normalize_event(
     category_mapping: dict[str, str],
     geocode_fn: GeocodeFn,
 ) -> EventPayload | None:
-    coordinates = geocode_fn(raw["address"])
-    if coordinates is None:
-        logger.warning(f"Geocoding failed, skipping event: {raw.get('external_id')}")
-        return None
+    if raw.get("latitude") is not None and raw.get("longitude") is not None:
+        latitude, longitude = raw["latitude"], raw["longitude"]
+    else:
+        coordinates = geocode_fn(raw["address"])
+        if coordinates is None:
+            logger.warning(f"Geocoding failed, skipping event: {raw.get('external_id')}")
+            return None
+        latitude, longitude = coordinates
 
-    latitude, longitude = coordinates
-    return EventPayload(
+    payload = EventPayload(
         external_id=raw["external_id"],
         source=source,
         title=raw["title"],
@@ -32,7 +35,11 @@ def normalize_event(
         longitude=longitude,
         starts_at=raw["starts_at"],
         source_url=raw.get("source_url"),
+        image_url=raw.get("image_url"),
     )
+
+    from app.normalization.ai_enrichment import enrich_event_with_ai
+    return enrich_event_with_ai(payload)
 
 
 def normalize_events(

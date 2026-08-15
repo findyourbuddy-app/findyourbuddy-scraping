@@ -14,3 +14,4 @@ class EventPayload(BaseModel):
     longitude: float
     starts_at: datetime
     source_url: str | None = None
+    image_url: str | None = None

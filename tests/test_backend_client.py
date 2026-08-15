@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 import httpx
@@ -32,6 +33,9 @@ def test_ingest_events_sends_single_batch() -> None:
 
     assert route.called
     assert route.calls.last.request.headers["X-Scraper-Api-Key"] == "test-key"
+    sent_body = json.loads(route.calls.last.request.content)
+    assert "events" in sent_body
+    assert sent_body["events"][0]["external_id"] == "evt-1"
 
 
 @respx.mock
