@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     geocoding_user_agent: str
     config_path: Path = Path("config.json")
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-latest"
 
 
 class AppConfig(BaseModel):

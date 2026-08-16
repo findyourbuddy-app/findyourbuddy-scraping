@@ -11,7 +11,7 @@ ALLOWED_CATEGORIES = [
     "theatre", "art", "workshop", "hobby", "other"
 ]
 
-def enrich_event_with_ai(payload: EventPayload, api_key: str) -> EventPayload:
+def enrich_event_with_ai(payload: EventPayload, api_key: str, model: str) -> EventPayload:
     """Enriches an EventPayload with AI-determined category mapping and tags using Gemini API."""
     if not api_key:
         logger.debug("GEMINI_API_KEY is not set. Skipping AI enrichment.")
@@ -32,7 +32,7 @@ def enrich_event_with_ai(payload: EventPayload, api_key: str) -> EventPayload:
         "}"
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     data = {
         "contents": [{
@@ -49,7 +49,7 @@ def enrich_event_with_ai(payload: EventPayload, api_key: str) -> EventPayload:
         response = httpx.post(url, headers=headers, json=data, timeout=5.0)
         if response.status_code == 200:
             result = response.json()
-            text_response = result["contents"][0]["parts"][0]["text"].strip()
+            text_response = result["candidates"][0]["content"]["parts"][0]["text"].strip()
             parsed = json.loads(text_response)
             
             # Map category if valid
