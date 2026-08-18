@@ -14,6 +14,19 @@ def _identity_enrich(payload: EventPayload) -> EventPayload:
     return payload
 
 
+import html
+import re
+
+def clean_html(text: str | None) -> str | None:
+    if not text:
+        return text
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</p>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</div>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = html.unescape(text)
+    return re.sub(r'\n\s*\n+', '\n\n', text).strip()
+
 def normalize_event(
     raw: dict[str, Any],
     source: str,
@@ -24,7 +37,8 @@ def normalize_event(
     if raw.get("latitude") is not None and raw.get("longitude") is not None:
         latitude, longitude = raw["latitude"], raw["longitude"]
     else:
-        coordinates = geocode_fn(raw["address"])
+        address = clean_html(raw["address"]) or raw["address"]
+        coordinates = geocode_fn(address)
         if coordinates is None:
             logger.warning(f"Geocoding failed, skipping event: {raw.get('external_id')}")
             return None
@@ -33,8 +47,8 @@ def normalize_event(
     payload = EventPayload(
         external_id=raw["external_id"],
         source=source,
-        title=raw["title"],
-        description=raw.get("description"),
+        title=clean_html(raw["title"]) or raw["title"],
+        description=clean_html(raw.get("description")),
         category=map_category(raw["category_raw"], category_mapping),
         location_name=raw["location_name"],
         latitude=latitude,

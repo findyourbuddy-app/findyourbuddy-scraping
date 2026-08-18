@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     geocoding_user_agent: str
     config_path: Path = Path("config.json")
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-latest"
+    novita_api_key: str = ""
+    novita_base_url: str = "https://api.novita.ai/openai"
+    novita_model: str = "deepseek/deepseek-v4-flash"
 
 
 class AppConfig(BaseModel):

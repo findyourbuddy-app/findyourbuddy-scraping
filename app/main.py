@@ -1,4 +1,7 @@
 import logging
+import os
+import signal
+from types import FrameType
 
 from app.config import Settings, get_settings, load_app_config
 from app.scheduler import start_scheduler
@@ -15,7 +18,15 @@ def build_source_registry(settings: Settings) -> dict[str, SourceAdapter]:
     return registry
 
 
+def _force_exit(signum: int, frame: FrameType | None) -> None:
+    # BlockingScheduler waits for the running job's worker thread on shutdown,
+    # so a normal exit blocks until the in-flight source finishes. os._exit
+    # kills the process immediately instead.
+    os._exit(1)
+
+
 def main() -> None:
+    signal.signal(signal.SIGINT, _force_exit)
     settings = get_settings()
     app_config = load_app_config(settings.config_path)
     source_registry = build_source_registry(settings)
