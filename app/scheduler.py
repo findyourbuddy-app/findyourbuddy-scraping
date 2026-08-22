@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from functools import partial
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -69,5 +70,6 @@ def start_scheduler(
         "interval",
         hours=settings.schedule_interval_hours,
         args=[sources, settings, category_mapping_by_source],
+        next_run_time=datetime.now(timezone.utc),
     )
     scheduler.start()
