@@ -4,10 +4,11 @@ from datetime import datetime
 import httpx
 import respx
 
-from app.ingestion.backend_client import ingest_events
+from app.ingestion.backend_client import fetch_known_external_ids, ingest_events
 from app.normalization.schema import EventPayload
 
 INGEST_URL = "https://backend.example.com/internal/events/ingest"
+KNOWN_IDS_URL = "https://backend.example.com/internal/events/known-ids"
 
 
 def _sample_event(external_id: str) -> EventPayload:
@@ -48,3 +49,26 @@ def test_ingest_events_splits_into_batches() -> None:
     ingest_events(events, "https://backend.example.com", "test-key", batch_size=50)
 
     assert route.call_count == 2
+
+
+@respx.mock
+def test_fetch_known_external_ids_returns_set() -> None:
+    route = respx.get(KNOWN_IDS_URL, params={"source": "biletix"}).mock(
+        return_value=httpx.Response(200, json={"external_ids": ["evt-1", "evt-2"]})
+    )
+
+    result = fetch_known_external_ids("https://backend.example.com", "test-key", "biletix")
+
+    assert result == {"evt-1", "evt-2"}
+    assert route.calls.last.request.headers["X-Scraper-Api-Key"] == "test-key"
+
+
+@respx.mock
+def test_fetch_known_external_ids_returns_empty_set_on_failure() -> None:
+    respx.get(KNOWN_IDS_URL, params={"source": "biletix"}).mock(
+        return_value=httpx.Response(500)
+    )
+
+    result = fetch_known_external_ids("https://backend.example.com", "test-key", "biletix")
+
+    assert result == set()

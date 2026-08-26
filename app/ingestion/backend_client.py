@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 50
 INGEST_PATH = "/internal/events/ingest"
+KNOWN_IDS_PATH = "/internal/events/known-ids"
 MAX_RETRY_ATTEMPTS = 3
 RETRY_WAIT_MIN_SECONDS = 2
 RETRY_WAIT_MAX_SECONDS = 30
@@ -32,6 +33,26 @@ def _post_batch(
     )
     response.raise_for_status()
     return response.json()
+
+
+def fetch_known_external_ids(
+    backend_api_url: str,
+    scraper_api_key: str,
+    source: str,
+) -> set[str]:
+    url = f"{backend_api_url.rstrip('/')}{KNOWN_IDS_PATH}"
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                url,
+                params={"source": source},
+                headers={"X-Scraper-Api-Key": scraper_api_key},
+            )
+            response.raise_for_status()
+            return set(response.json()["external_ids"])
+    except Exception:
+        logger.exception(f"Failed to fetch known external ids for source: {source}")
+        return set()
 
 
 def ingest_events(
