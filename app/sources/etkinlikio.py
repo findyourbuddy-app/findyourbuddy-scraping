@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -8,6 +8,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://etkinlik.io/api/v2"
+# Turkey has been permanently UTC+3 (no DST) since 2016. Etkinlik.io's
+# `start_r001` is the organizer-entered local start time; some records carry an
+# explicit offset, others are naive Istanbul time.
+_ISTANBUL_TZ = timezone(timedelta(hours=3))
 PAGE_SIZE = 50  # Reduced from 100 to keep p95 latency under 300ms per Etkinlik.io docs
 MAX_RETRY_ATTEMPTS = 2
 RETRY_WAIT_MIN_SECONDS = 2
@@ -45,8 +49,11 @@ class EtkinlikIoSource:
         self._api_token = api_token
         self._base_url = base_url.rstrip("/")
 
-    def fetch_raw_events(self) -> list[dict[str, Any]]:
+    def fetch_raw_events(self, known_ids: set[str] | None = None) -> list[dict[str, Any]]:
+        known = known_ids or set()
         raw_events: list[dict[str, Any]] = []
+        seen = 0
+        skipped_known = 0
         skip = 0
         with httpx.Client(
             base_url=self._base_url,
@@ -58,6 +65,12 @@ class EtkinlikIoSource:
                 items = payload["items"]
 
                 for item in items:
+                    seen += 1
+                    # Skip events the backend already has BEFORE the impression
+                    # ping / mapping -- a re-run should only work new events.
+                    if str(item["id"]) in known:
+                        skipped_known += 1
+                        continue
                     raw = _map_event(item)
                     if raw is not None:
                         raw_events.append(raw)
@@ -67,7 +80,22 @@ class EtkinlikIoSource:
                 if skip >= payload["meta"]["total_count"]:
                     break
 
+        logger.info(
+            "etkinlik.io: %s listelendi, %s zaten kayitli (atlandi), %s yeni islenecek",
+            seen,
+            skipped_known,
+            len(raw_events),
+        )
         return raw_events
+
+
+def _parse_starts_at(value: str) -> datetime:
+    """Returns a naive UTC datetime -- the convention the backend stores and the
+    app reads back. A naive input is assumed to be Istanbul local time."""
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_ISTANBUL_TZ)
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _map_event(item: dict[str, Any]) -> dict[str, Any] | None:
@@ -83,7 +111,7 @@ def _map_event(item: dict[str, Any]) -> dict[str, Any] | None:
         "category_raw": item["category"]["slug"],
         "location_name": location["location_name"],
         "address": location["address"],
-        "starts_at": datetime.fromisoformat(item["start_r001"]),
+        "starts_at": _parse_starts_at(item["start_r001"]),
         "source_url": item.get("url"),
         "image_url": item.get("poster_url"),
     }

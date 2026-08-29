@@ -1,7 +1,9 @@
+from datetime import datetime
+
 import httpx
 import respx
 
-from app.sources.etkinlikio import EtkinlikIoSource
+from app.sources.etkinlikio import EtkinlikIoSource, _parse_starts_at
 
 EVENTS_URL = "https://etkinlik.io/api/v2/events"
 
@@ -51,6 +53,19 @@ def test_fetch_raw_events_maps_venue_with_coordinates() -> None:
     assert event["longitude"] == 28.9784
     assert event["image_url"] == "https://etkinlik.io/posters/1.jpg"
     assert event["source_url"] == "https://etkinlik.io/etkinlik/1"
+    # Stored as naive UTC.
+    assert event["starts_at"] == datetime(2026, 9, 1, 18, 0)
+
+
+def test_parse_starts_at_normalizes_to_naive_utc() -> None:
+    # Explicit +03:00 offset (Istanbul).
+    assert _parse_starts_at("2026-09-01T21:00:00+03:00") == datetime(2026, 9, 1, 18, 0)
+    # Already UTC.
+    assert _parse_starts_at("2026-09-01T18:00:00+00:00") == datetime(2026, 9, 1, 18, 0)
+    # Naive -> assumed Istanbul local, so 21:00 local -> 18:00 UTC (date unchanged).
+    assert _parse_starts_at("2026-09-01T21:00:00") == datetime(2026, 9, 1, 18, 0)
+    # Naive early-morning local rolls the date back in UTC.
+    assert _parse_starts_at("2026-09-02T01:00:00") == datetime(2026, 9, 1, 22, 0)
 
 
 @respx.mock
@@ -129,20 +144,48 @@ def test_fetch_raw_events_skips_online_events() -> None:
 
 
 @respx.mock
+def test_fetch_raw_events_skips_known_ids_without_recording_impressions() -> None:
+    events_route = respx.get(EVENTS_URL).mock(
+        return_value=httpx.Response(
+            200, json={"meta": {"total_count": 2}, "items": [_event(1), _event(2)]}
+        )
+    )
+    impression_1 = respx.post("https://etkinlik.io/api/v2/events/1/impressions").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    impression_2 = respx.post("https://etkinlik.io/api/v2/events/2/impressions").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    events = EtkinlikIoSource(api_token="token").fetch_raw_events(known_ids={"1"})
+
+    assert [e["external_id"] for e in events] == ["2"]
+    assert events_route.called
+    assert not impression_1.called  # already known -> not pinged
+    assert impression_2.called
+
+
+@respx.mock
 def test_fetch_raw_events_paginates_until_total_count_reached() -> None:
-    page_one = [_event(i) for i in range(100)]
-    page_two = [_event(100)]
+    from app.sources.etkinlikio import PAGE_SIZE
+
+    total = PAGE_SIZE + 1
+    page_one = [_event(i) for i in range(PAGE_SIZE)]
+    page_two = [_event(PAGE_SIZE)]
     route = respx.get(EVENTS_URL).mock(
         side_effect=[
-            httpx.Response(200, json={"meta": {"total_count": 101}, "items": page_one}),
-            httpx.Response(200, json={"meta": {"total_count": 101}, "items": page_two}),
+            httpx.Response(200, json={"meta": {"total_count": total}, "items": page_one}),
+            httpx.Response(200, json={"meta": {"total_count": total}, "items": page_two}),
         ]
+    )
+    respx.post(url__regex=r"https://etkinlik\.io/api/v2/events/\d+/impressions").mock(
+        return_value=httpx.Response(200, json={})
     )
 
     events = EtkinlikIoSource(api_token="token").fetch_raw_events()
 
     assert route.call_count == 2
-    assert len(events) == 101
+    assert len(events) == total
 
 
 @respx.mock
