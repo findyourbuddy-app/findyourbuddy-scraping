@@ -36,14 +36,15 @@ def run_source(
     category_mapping: dict[str, str],
 ) -> None:
     try:
-        raw_events = adapter.fetch_raw_events()
-
         known_ids = fetch_known_external_ids(settings.backend_api_url, settings.scraper_api_key, name)
+
+        # Pass the known set INTO the fetch so the adapter skips already-ingested
+        # events before any per-event work (impression pings, geocoding budget).
+        raw_events = adapter.fetch_raw_events(known_ids)
+
+        # Belt-and-suspenders in case a source ignores `known_ids`.
         new_raw_events = [e for e in raw_events if e["external_id"] not in known_ids]
-        logger.info(
-            f"{name}: {len(raw_events)} etkinlik bulundu, {len(new_raw_events)} yeni "
-            f"(zaten kayitli: {len(raw_events) - len(new_raw_events)})."
-        )
+        logger.info(f"{name}: {len(new_raw_events)} yeni etkinlik islenecek.")
         if not new_raw_events:
             return
 

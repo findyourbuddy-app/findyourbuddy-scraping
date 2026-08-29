@@ -2,7 +2,12 @@
 
 `findyourbuddy-backend`'e etkinlik verisi besleyen bağımsız scraper servisi.
 Backend veritabanına doğrudan erişmez, sadece `POST /internal/events/ingest`
-REST endpoint'i üzerinden konuşur.
+REST endpoint'i üzerinden konuşur. Sistemdeki yeri:
+[findyourbuddy-backend/docs/mimari.md](../findyourbuddy-backend/docs/mimari.md) §8.
+
+> ⚠️ `.env` `BACKEND_API_URL`, backend'in gerçekten dinlediği portla eşleşmeli.
+> Native geliştirmede `run_server.py` sırayla `8001, 8000, ...` dener (genelde
+> **8001**); port uyuşmazsa ingest sessizce başarısız olur.
 
 ## Kurulum
 
@@ -60,4 +65,10 @@ config.json                        # Kategori eşlemesi + aktif kaynak listesi (
   `GEMINI_API_KEY` varsa Gemini (`GEMINI_MODEL`, varsayılan `gemini-flash-latest`);
   ikisi de boşsa bu adım sessizce atlanır.
 - Scheduler `SCHEDULE_INTERVAL_HOURS` aralığında (varsayılan 6, örnekte 1) tüm aktif kaynakları çalıştırır;
-  bir kaynak hata verirse loglanıp diğerlerine devam edilir.
+  bir kaynak hata verirse loglanıp diğerlerine devam edilir. Açılışta hemen bir tur atar.
+- **Artımlı çalışma:** her tur önce backend'den `known-ids`'i çeker; adapter
+  zaten kayıtlı etkinlikleri impression ping / mapping / geocoding'den ÖNCE
+  atlar. Restart / yeni tur yalnız yeni etkinlikleri işler.
+- `start_r001` UTC ISO'dur; `_parse_starts_at` aware→UTC, naive→İstanbul(UTC+3)
+  normalizasyonu yapıp tzinfo'yu düşürür (backend naive-UTC saklar).
+- Tek seferlik tam yeniden çekiş için `run_once.py` (scheduler'sız tek tur).
