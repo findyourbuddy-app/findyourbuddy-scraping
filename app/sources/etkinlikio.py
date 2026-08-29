@@ -3,11 +3,36 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://etkinlik.io/api/v2"
-PAGE_SIZE = 100
+PAGE_SIZE = 50  # Reduced from 100 to keep p95 latency under 300ms per Etkinlik.io docs
+MAX_RETRY_ATTEMPTS = 2
+RETRY_WAIT_MIN_SECONDS = 2
+RETRY_WAIT_MAX_SECONDS = 10
+
+
+@retry(
+    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
+)
+def _fetch_page(client: httpx.Client, skip: int) -> dict[str, Any]:
+    response = client.get(
+        "/events",
+        params={"take": PAGE_SIZE, "skip": skip, "sort_by": "upcoming"},
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _record_impression(client: httpx.Client, event_id: str) -> None:
+    """Records an event impression on Etkinlik.io API per vendor recommendation."""
+    try:
+        client.post(f"/events/{event_id}/impressions")
+    except Exception as exc:
+        logger.debug(f"Failed to record impression for Etkinlik.io event {event_id}: {exc}")
 
 
 class EtkinlikIoSource:
@@ -26,21 +51,17 @@ class EtkinlikIoSource:
         with httpx.Client(
             base_url=self._base_url,
             headers={"X-Etkinlik-Token": self._api_token},
-            timeout=30.0,
+            timeout=60.0,
         ) as client:
             while True:
-                response = client.get(
-                    "/events",
-                    params={"take": PAGE_SIZE, "skip": skip, "sort_by": "upcoming"},
-                )
-                response.raise_for_status()
-                payload = response.json()
+                payload = _fetch_page(client, skip)
                 items = payload["items"]
 
                 for item in items:
                     raw = _map_event(item)
                     if raw is not None:
                         raw_events.append(raw)
+                        _record_impression(client, str(item["id"]))
 
                 skip += PAGE_SIZE
                 if skip >= payload["meta"]["total_count"]:

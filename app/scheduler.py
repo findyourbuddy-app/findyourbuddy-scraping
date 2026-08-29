@@ -1,11 +1,12 @@
 import logging
+from datetime import datetime, timezone
 from functools import partial
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from app.config import Settings
 from app.geocoding.client import geocode
-from app.ingestion.backend_client import ingest_events
+from app.ingestion.backend_client import fetch_known_external_ids, ingest_events
 from app.normalization.ai_enrichment import enrich_event_with_ai, enrich_event_with_novita
 from app.normalization.normalizer import EnrichFn, normalize_events
 from app.sources.base import SourceAdapter
@@ -35,6 +36,17 @@ def run_source(
     category_mapping: dict[str, str],
 ) -> None:
     try:
+        raw_events = adapter.fetch_raw_events()
+
+        known_ids = fetch_known_external_ids(settings.backend_api_url, settings.scraper_api_key, name)
+        new_raw_events = [e for e in raw_events if e["external_id"] not in known_ids]
+        logger.info(
+            f"{name}: {len(raw_events)} etkinlik bulundu, {len(new_raw_events)} yeni "
+            f"(zaten kayitli: {len(raw_events) - len(new_raw_events)})."
+        )
+        if not new_raw_events:
+            return
+
         geocode_fn = partial(
             geocode,
             delay_seconds=settings.geocoding_delay_seconds,
@@ -42,8 +54,7 @@ def run_source(
             user_agent=settings.geocoding_user_agent,
         )
         enrich_fn = build_enrich_fn(settings)
-        raw_events = adapter.fetch_raw_events()
-        events = normalize_events(raw_events, name, category_mapping, geocode_fn, enrich_fn)
+        events = normalize_events(new_raw_events, name, category_mapping, geocode_fn, enrich_fn)
         ingest_events(events, settings.backend_api_url, settings.scraper_api_key)
     except Exception:
         logger.exception(f"Source failed, skipping: {name}")
@@ -69,5 +80,6 @@ def start_scheduler(
         "interval",
         hours=settings.schedule_interval_hours,
         args=[sources, settings, category_mapping_by_source],
+        next_run_time=datetime.now(timezone.utc),
     )
     scheduler.start()

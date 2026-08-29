@@ -1,4 +1,6 @@
+import html
 import logging
+import re
 from typing import Any, Callable
 
 from app.normalization.category_mapper import map_category
@@ -13,9 +15,6 @@ EnrichFn = Callable[[EventPayload], EventPayload]
 def _identity_enrich(payload: EventPayload) -> EventPayload:
     return payload
 
-
-import html
-import re
 
 def clean_html(text: str | None) -> str | None:
     if not text:
