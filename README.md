@@ -3,7 +3,7 @@
 `findyourbuddy-backend`'e etkinlik verisi besleyen bağımsız scraper servisi.
 Backend veritabanına doğrudan erişmez, sadece `POST /internal/events/ingest`
 REST endpoint'i üzerinden konuşur. Sistemdeki yeri:
-[../docs/mimari.md](../docs/mimari.md) §8.
+[findyourbuddy-backend/docs/mimari.md](../findyourbuddy-backend/docs/mimari.md) §8.
 
 > ⚠️ `.env` `BACKEND_API_URL`, backend'in gerçekten dinlediği portla eşleşmeli.
 > Native geliştirmede `run_server.py` sırayla `8001, 8000, ...` dener (genelde
