@@ -13,7 +13,7 @@ jobs:
       SCRAPER_API_KEY: ci-test-scraper-key
       GEOCODING_USER_AGENT: findyourbuddy-ci/0.1 (ci@findyourbuddy.test)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -33,7 +33,7 @@ jobs:
     # opens the bump PRs.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
