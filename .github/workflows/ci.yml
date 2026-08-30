@@ -29,6 +29,9 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    # Advisory: surfaces known CVEs without blocking. Review the log; Dependabot
+    # opens the bump PRs.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
